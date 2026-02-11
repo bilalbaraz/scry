@@ -47,6 +47,12 @@ func (s *Scanner) ListFiles() ([]File, error) {
 			}
 			return nil
 		}
+		if strings.HasPrefix(rel, ".scry/") || rel == ".scry" {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if s.Matcher != nil && s.Matcher.Ignored(rel) {
 			if d.IsDir() {
 				return filepath.SkipDir
