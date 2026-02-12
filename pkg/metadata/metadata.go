@@ -3,6 +3,7 @@ package metadata
 import (
 	"bufio"
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -129,7 +130,7 @@ func (d *DB) ListFiles() ([]string, error) {
 }
 
 func (d *DB) GetChunk(id string) (ChunkView, bool, error) {
-	query := fmt.Sprintf("SELECT id, file_path, start_line, end_line, content FROM chunks WHERE id = %s;", sqlQuote(id))
+	query := fmt.Sprintf("SELECT id, file_path, start_line, end_line, hex(content) FROM chunks WHERE id = %s;", sqlQuote(id))
 	out, err := d.runQuery(query)
 	if err != nil {
 		return ChunkView{}, false, err
@@ -142,12 +143,16 @@ func (d *DB) GetChunk(id string) (ChunkView, bool, error) {
 	if len(fields) != 5 {
 		return ChunkView{}, false, fmt.Errorf("unexpected columns for chunks")
 	}
+	content, err := decodeHexString(fields[4])
+	if err != nil {
+		return ChunkView{}, false, err
+	}
 	return ChunkView{
 		ID:        fields[0],
 		FilePath:  fields[1],
 		StartLine: int(parseInt64(fields[2])),
 		EndLine:   int(parseInt64(fields[3])),
-		Content:   fields[4],
+		Content:   content,
 	}, true, nil
 }
 
@@ -159,7 +164,7 @@ func (d *DB) GetChunksByIDs(ids []string) ([]ChunkView, error) {
 	for _, id := range ids {
 		quoted = append(quoted, sqlQuote(id))
 	}
-	query := fmt.Sprintf("SELECT id, file_path, start_line, end_line, content FROM chunks WHERE id IN (%s);", strings.Join(quoted, ","))
+	query := fmt.Sprintf("SELECT id, file_path, start_line, end_line, hex(content) FROM chunks WHERE id IN (%s);", strings.Join(quoted, ","))
 	out, err := d.runQuery(query)
 	if err != nil {
 		return nil, err
@@ -171,12 +176,16 @@ func (d *DB) GetChunksByIDs(ids []string) ([]ChunkView, error) {
 		if len(fields) != 5 {
 			return nil, fmt.Errorf("unexpected columns for chunks")
 		}
+		content, err := decodeHexString(fields[4])
+		if err != nil {
+			return nil, err
+		}
 		chunks = append(chunks, ChunkView{
 			ID:        fields[0],
 			FilePath:  fields[1],
 			StartLine: int(parseInt64(fields[2])),
 			EndLine:   int(parseInt64(fields[3])),
-			Content:   fields[4],
+			Content:   content,
 		})
 	}
 	return chunks, nil
@@ -304,4 +313,15 @@ func parseInt64(s string) int64 {
 		return 0
 	}
 	return v
+}
+
+func decodeHexString(s string) (string, error) {
+	if s == "" {
+		return "", nil
+	}
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return "", fmt.Errorf("decode hex content: %w", err)
+	}
+	return string(b), nil
 }
