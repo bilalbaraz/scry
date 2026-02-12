@@ -16,7 +16,7 @@ go build ./cmd/scry
 # Search
 ./scry search "query"
 
-# Ask
+# Ask (extractive evidence-based MVP)
 ./scry ask "How does indexing work?"
 
 # Status

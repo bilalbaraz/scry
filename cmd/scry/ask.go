@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	askquery "scry/internal/query/ask"
 	"scry/pkg/metadata"
 	"scry/pkg/search"
 	"scry/pkg/workspace"
@@ -44,47 +45,71 @@ func newAskCmd() *cobra.Command {
 				return exitError{code: exitRuntimeError, err: err}
 			}
 			jsonOut, _ := cmd.Flags().GetBool("json")
-			if len(results) == 0 {
+			terms := askquery.TokenizeQuery(question)
+			var candidates []askquery.Chunk
+			for _, r := range results {
+				candidates = append(candidates, askquery.Chunk{
+					ID:        r.Chunk.ID,
+					FilePath:  r.Chunk.FilePath,
+					StartLine: r.Chunk.StartLine,
+					EndLine:   r.Chunk.EndLine,
+					Text:      r.Chunk.Content,
+					Score:     r.Score,
+				})
+			}
+
+			decision := askquery.BuildPipeline(candidates, terms, askquery.AskOptions{
+				MaxEvidence:  2,
+				SnippetChars: 240,
+				MinScore:     1.0,
+			})
+
+			if len(decision.Evidence) == 0 {
+				hint := "No relevant evidence found in indexed chunks."
 				if jsonOut {
 					_ = json.NewEncoder(os.Stdout).Encode(map[string]any{
 						"type":   "answer",
 						"text":   "I don't know.",
-						"reason": "no_evidence",
+						"reason": decision.Reason,
+						"hint":   hint,
 					})
 				} else {
 					fmt.Fprintln(os.Stdout, "I don't know.")
+					fmt.Fprintln(os.Stdout, hint)
 				}
 				return nil
 			}
 
-			answer := buildExtractiveAnswer(results)
+			answerHeader := askquery.AnswerHeader(decision.Evidence)
 			if jsonOut {
 				_ = json.NewEncoder(os.Stdout).Encode(map[string]any{
 					"type": "answer",
-					"text": answer,
+					"text": answerHeader,
 				})
-				for i, r := range results {
+				for i, ev := range decision.Evidence {
 					_ = json.NewEncoder(os.Stdout).Encode(map[string]any{
-						"type":       "citation",
+						"type":       "evidence",
 						"id":         i + 1,
-						"path":       r.Chunk.FilePath,
-						"start_line": r.Chunk.StartLine,
-						"end_line":   r.Chunk.EndLine,
+						"snippet":    ev.Snippet,
+						"path":       ev.Chunk.FilePath,
+						"start_line": ev.Chunk.StartLine,
+						"end_line":   ev.Chunk.EndLine,
 					})
 				}
 				_ = json.NewEncoder(os.Stdout).Encode(map[string]any{
 					"type": "summary",
-					"k":    len(results),
+					"k":    len(decision.Evidence),
 				})
 				return nil
 			}
 
 			fmt.Fprintln(os.Stdout, "Answer:")
-			fmt.Fprintln(os.Stdout, answer)
+			fmt.Fprintln(os.Stdout, answerHeader)
 			fmt.Fprintln(os.Stdout, "")
-			fmt.Fprintln(os.Stdout, "Citations:")
-			for i, r := range results {
-				fmt.Fprintf(os.Stdout, "[%d] %s:%d-%d\n", i+1, r.Chunk.FilePath, r.Chunk.StartLine, r.Chunk.EndLine)
+			fmt.Fprintln(os.Stdout, "Evidence:")
+			for i, ev := range decision.Evidence {
+				fmt.Fprintf(os.Stdout, "[%d] %s:%d-%d\n", i+1, ev.Chunk.FilePath, ev.Chunk.StartLine, ev.Chunk.EndLine)
+				fmt.Fprintf(os.Stdout, "    %s\n", ev.Snippet)
 			}
 			return nil
 		},
@@ -92,18 +117,4 @@ func newAskCmd() *cobra.Command {
 	addCommonFlags(cmd)
 	cmd.Flags().IntVar(&limit, "k", 6, "number of context chunks")
 	return cmd
-}
-
-func buildExtractiveAnswer(results []search.Result) string {
-	if len(results) == 0 {
-		return "I don't know."
-	}
-	var parts []string
-	for i, r := range results {
-		if i >= 3 {
-			break
-		}
-		parts = append(parts, formatSnippet(r.Chunk.Content, 240))
-	}
-	return strings.Join(parts, "\n\n")
 }
