@@ -37,6 +37,25 @@ type TermRecord struct {
 	TF      int
 }
 
+type ChunkView struct {
+	ID        string
+	FilePath  string
+	StartLine int
+	EndLine   int
+	Content   string
+}
+
+type TermHit struct {
+	ChunkID string
+	TF      int
+}
+
+type Stats struct {
+	Files  int
+	Chunks int
+	Terms  int
+}
+
 func Open(path string) (*DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
@@ -109,6 +128,97 @@ func (d *DB) ListFiles() ([]string, error) {
 	return lines, nil
 }
 
+func (d *DB) GetChunk(id string) (ChunkView, bool, error) {
+	query := fmt.Sprintf("SELECT id, file_path, start_line, end_line, content FROM chunks WHERE id = %s;", sqlQuote(id))
+	out, err := d.runQuery(query)
+	if err != nil {
+		return ChunkView{}, false, err
+	}
+	lines := splitLines(out)
+	if len(lines) == 0 {
+		return ChunkView{}, false, nil
+	}
+	fields := strings.Split(lines[0], "\t")
+	if len(fields) != 5 {
+		return ChunkView{}, false, fmt.Errorf("unexpected columns for chunks")
+	}
+	return ChunkView{
+		ID:        fields[0],
+		FilePath:  fields[1],
+		StartLine: int(parseInt64(fields[2])),
+		EndLine:   int(parseInt64(fields[3])),
+		Content:   fields[4],
+	}, true, nil
+}
+
+func (d *DB) GetChunksByIDs(ids []string) ([]ChunkView, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var quoted []string
+	for _, id := range ids {
+		quoted = append(quoted, sqlQuote(id))
+	}
+	query := fmt.Sprintf("SELECT id, file_path, start_line, end_line, content FROM chunks WHERE id IN (%s);", strings.Join(quoted, ","))
+	out, err := d.runQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	lines := splitLines(out)
+	var chunks []ChunkView
+	for _, line := range lines {
+		fields := strings.Split(line, "\t")
+		if len(fields) != 5 {
+			return nil, fmt.Errorf("unexpected columns for chunks")
+		}
+		chunks = append(chunks, ChunkView{
+			ID:        fields[0],
+			FilePath:  fields[1],
+			StartLine: int(parseInt64(fields[2])),
+			EndLine:   int(parseInt64(fields[3])),
+			Content:   fields[4],
+		})
+	}
+	return chunks, nil
+}
+
+func (d *DB) TermHits(term string) ([]TermHit, error) {
+	query := fmt.Sprintf("SELECT chunk_id, tf FROM terms WHERE term = %s;", sqlQuote(term))
+	out, err := d.runQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	lines := splitLines(out)
+	var hits []TermHit
+	for _, line := range lines {
+		fields := strings.Split(line, "\t")
+		if len(fields) != 2 {
+			return nil, fmt.Errorf("unexpected columns for terms")
+		}
+		hits = append(hits, TermHit{
+			ChunkID: fields[0],
+			TF:      int(parseInt64(fields[1])),
+		})
+	}
+	return hits, nil
+}
+
+func (d *DB) Stats() (Stats, error) {
+	files, err := d.scalarInt("SELECT COUNT(*) FROM files;")
+	if err != nil {
+		return Stats{}, err
+	}
+	chunks, err := d.scalarInt("SELECT COUNT(*) FROM chunks;")
+	if err != nil {
+		return Stats{}, err
+	}
+	terms, err := d.scalarInt("SELECT COUNT(*) FROM terms;")
+	if err != nil {
+		return Stats{}, err
+	}
+	return Stats{Files: files, Chunks: chunks, Terms: terms}, nil
+}
+
 func (d *DB) DeleteFile(path string) error {
 	script := fmt.Sprintf(`
 BEGIN;
@@ -146,6 +256,18 @@ func (d *DB) runQuery(query string) (string, error) {
 		return "", fmt.Errorf("sqlite3 query: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return string(out), nil
+}
+
+func (d *DB) scalarInt(query string) (int, error) {
+	out, err := d.runQuery(query)
+	if err != nil {
+		return 0, err
+	}
+	lines := splitLines(out)
+	if len(lines) == 0 {
+		return 0, nil
+	}
+	return int(parseInt64(lines[0])), nil
 }
 
 func (d *DB) runScript(script string) error {

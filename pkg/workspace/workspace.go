@@ -23,3 +23,8 @@ func Resolve(root string) Paths {
 func Ensure(paths Paths) error {
 	return os.MkdirAll(paths.Workspace, 0o755)
 }
+
+func Exists(paths Paths) bool {
+	_, err := os.Stat(paths.IndexDBPath)
+	return err == nil
+}
