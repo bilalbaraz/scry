@@ -13,7 +13,7 @@ type Matcher struct {
 }
 
 func Load(root string) (*Matcher, error) {
-	globs := []string{}
+	globs := defaultPatterns()
 	gitIgnore, err := loadPatterns(filepath.Join(root, ".gitignore"))
 	if err != nil {
 		return nil, err
@@ -76,4 +76,11 @@ func loadPatterns(path string) ([]string, error) {
 		patterns = append(patterns, filepath.ToSlash(line))
 	}
 	return patterns, scanner.Err()
+}
+
+func defaultPatterns() []string {
+	return []string{
+		"*_test.go",
+		"testdata/",
+	}
 }

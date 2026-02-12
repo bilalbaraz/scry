@@ -19,6 +19,8 @@ func TestMatcherFromFiles(t *testing.T) {
 		{"vendor/module/file.go", true},
 		{"build/output.o", true},
 		{"notes.md", true},
+		{"pkg/scan/scan_test.go", true},
+		{"testdata/fixtures/input.txt", true},
 		{"src/main.go", false},
 		{"docs/readme.md", true},
 	}

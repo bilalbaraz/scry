@@ -11,6 +11,11 @@ type BoostRule struct {
 func DefaultBoostRules() []BoostRule {
 	return []BoostRule{
 		{
+			Terms: nil,
+			Paths: []string{"internal/query/ask/", "cmd/"},
+			Bonus: -2.0,
+		},
+		{
 			Terms: []string{"ignore", "scan", "gitignore", "pattern", "exclude"},
 			Paths: []string{"pkg/ignore/", "pkg/scan/"},
 			Bonus: 2.0,
@@ -41,6 +46,9 @@ func ApplyBoosts(chunks []Chunk, terms []string, rules []BoostRule) []Chunk {
 }
 
 func termsMatch(ruleTerms []string, termSet map[string]struct{}) bool {
+	if len(ruleTerms) == 0 {
+		return true
+	}
 	for _, t := range ruleTerms {
 		if _, ok := termSet[t]; ok {
 			return true
