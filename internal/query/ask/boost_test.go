@@ -35,3 +35,37 @@ func TestApplyBoostsPenalty(t *testing.T) {
 		t.Fatalf("expected positive boost for pkg/scan path")
 	}
 }
+
+func TestTermsMatch(t *testing.T) {
+	if !termsMatch(nil, map[string]struct{}{}) {
+		t.Fatalf("expected empty rule terms to match")
+	}
+	if termsMatch([]string{"alpha"}, map[string]struct{}{"beta": {}}) {
+		t.Fatalf("expected no match")
+	}
+	if !termsMatch([]string{"alpha"}, map[string]struct{}{"alpha": {}}) {
+		t.Fatalf("expected match")
+	}
+}
+
+func TestApplyBoostsEarlyReturn(t *testing.T) {
+	chunks := []Chunk{{ID: "1", FilePath: "pkg/scan/scan.go", Score: 1.0}}
+	if got := ApplyBoosts(chunks, nil, DefaultBoostRules()); got == nil {
+		t.Fatalf("expected chunks back for empty terms")
+	}
+	if got := ApplyBoosts(nil, []string{"scan"}, DefaultBoostRules()); got != nil {
+		t.Fatalf("expected nil for empty chunks")
+	}
+	if got := ApplyBoosts(chunks, []string{"scan"}, nil); got == nil {
+		t.Fatalf("expected chunks back for empty rules")
+	}
+}
+
+func TestApplyBoostsNoPathMatch(t *testing.T) {
+	chunks := []Chunk{{ID: "1", FilePath: "docs/readme.md", Score: 1.0}}
+	terms := []string{"scan"}
+	got := ApplyBoosts(chunks, terms, DefaultBoostRules())
+	if got[0].Score != 1.0 {
+		t.Fatalf("expected no boost for non-matching path")
+	}
+}

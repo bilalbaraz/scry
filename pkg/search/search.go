@@ -12,11 +12,16 @@ type Result struct {
 	Score float64
 }
 
-type Engine struct {
-	Store *metadata.DB
+type Store interface {
+	TermHits(term string) ([]metadata.TermHit, error)
+	GetChunksByIDs(ids []string) ([]metadata.ChunkView, error)
 }
 
-func New(store *metadata.DB) *Engine {
+type Engine struct {
+	Store Store
+}
+
+func New(store Store) *Engine {
 	return &Engine{Store: store}
 }
 

@@ -17,3 +17,21 @@ func TestFilterByQueryTerms(t *testing.T) {
 		t.Fatalf("unexpected chunk IDs: %v, %v", got[0].ID, got[1].ID)
 	}
 }
+
+func TestFilterByQueryTermsEmptyInputs(t *testing.T) {
+	if got := FilterByQueryTerms(nil, []string{"ignore"}); got != nil {
+		t.Fatalf("expected nil for empty chunks")
+	}
+	if got := FilterByQueryTerms([]Chunk{{ID: "1", Text: "ignore"}}, nil); got != nil {
+		t.Fatalf("expected nil for empty terms")
+	}
+}
+
+func TestHasAnyTermSkipsEmpty(t *testing.T) {
+	if hasAnyTerm("alpha", []string{""}) {
+		t.Fatalf("expected no match for empty term")
+	}
+	if !hasAnyTerm("alpha beta", []string{"", "beta"}) {
+		t.Fatalf("expected match for beta")
+	}
+}

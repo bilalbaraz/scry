@@ -19,3 +19,19 @@ func TestDistinctTermMatchCountDedup(t *testing.T) {
 		t.Fatalf("expected 1, got %d", got)
 	}
 }
+
+func TestDistinctTermMatchCountEmpty(t *testing.T) {
+	if got := DistinctTermMatchCount(nil, "text"); got != 0 {
+		t.Fatalf("expected 0, got %d", got)
+	}
+	if got := DistinctTermMatchCount([]string{"ignore"}, ""); got != 0 {
+		t.Fatalf("expected 0, got %d", got)
+	}
+}
+
+func TestDistinctTermMatchCountSkipsEmptyTerm(t *testing.T) {
+	got := DistinctTermMatchCount([]string{""}, "alpha")
+	if got != 0 {
+		t.Fatalf("expected 0, got %d", got)
+	}
+}
