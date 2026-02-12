@@ -1,5 +1,8 @@
 # scry
 
+![GitHub Release](https://img.shields.io/github/v/release/bilalbaraz/scry)
+![Codecov](https://img.shields.io/codecov/c/gh/bilalbaraz/scry?logo=codecov&label=codecov)
+
 **Local-first codebase memory CLI.**
 
 `scry` builds a local index of your repository and lets you search and ask questions with evidence-only snippets. It is designed to keep your code on your machine and remain simple, predictable, and hackable.
